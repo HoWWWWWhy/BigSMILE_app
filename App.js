@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View, StatusBar, Dimensions,
-  TouchableOpacity } from 'react-native';
+  TouchableOpacity, Slider } from 'react-native';
 import { AppLoading } from 'expo';
 
 import * as Permissions from 'expo-permissions';
@@ -8,8 +8,7 @@ import { Camera } from 'expo-camera';
 import * as FaceDetector from 'expo-face-detector';
 import * as MediaLibrary from 'expo-media-library';
 
-import { Entypo } from '@expo/vector-icons';
-
+import { Ionicons } from '@expo/vector-icons';
 
 const { height, width } = Dimensions.get("window");
 const ALBUM_NAME = "BigSMILE";
@@ -19,26 +18,37 @@ export default class App extends React.Component {
     loaded: false,
     hasCameraPermission: null,
     hasCameraRollPermission: null,
-    type: Camera.Constants.Type.back
+    type: Camera.Constants.Type.back,
+    options: {
+      mode: FaceDetector.Constants.Mode.fast,
+      detectLandmarks: FaceDetector.Constants.Landmarks.all,
+      runClassifications: FaceDetector.Constants.Classifications.all
+    },
+    faces: [],
+    smileThd: 50
   };  
 
   componentDidMount = async () => {
     this._loadApp();
-
+    
     const { status } = await Permissions.askAsync(
       Permissions.CAMERA, 
-      Permissions.CAMERA_ROLL);
-
+      Permissions.CAMERA_ROLL
+    );
+    
     this.setState({ 
       hasCameraPermission: status === 'granted',
-      hasCameraRollPermission: status === 'granted'
+      hasCameraRollPermission: status === 'granted',
     });
     
+    
   }
-
+  
   render() {
-    const { loaded, hasCameraPermission, hasCameraRollPermission, type } = this.state;
-
+    const { loaded, hasCameraPermission, hasCameraRollPermission,
+      type, options, smileThd } = this.state;
+    
+    
     if(!loaded) {
       return <AppLoading />;
     }
@@ -54,6 +64,7 @@ export default class App extends React.Component {
         );
 
       } else {
+        
         return (
           <View style={styles.container}>
             <StatusBar barStyle="light-content" />
@@ -61,7 +72,11 @@ export default class App extends React.Component {
             <Camera 
               style={styles.camera}
               type={type}
-              ref={ref => { this.camera = ref; }}>
+              ref={ref => { this.camera = ref; }}
+              onFacesDetected={this._isFacesDetected}
+              faceDetectorSettings={options}
+              >
+              
               <View
                 style={{
                   flex: 1,
@@ -70,23 +85,26 @@ export default class App extends React.Component {
                 }}>
               </View>           
             </Camera>
-            <View style={styles.cameraMenu}> 
-              <TouchableOpacity
-                onPress={() => {
-                  this._takePhoto();
-                }}>
-                <View tyle={styles.captureButton}>  
-                  <Entypo name="camera" size={50}/>
-                </View>
-              </TouchableOpacity>              
+            
+            <View style={styles.cameraMenu}>             
               <TouchableOpacity
                 onPress={() => {
                   this._flipCamera();
                 }}>
                 <View style={styles.flipSwitch}>  
-                  <Entypo name="switch" size={50}/>
+                  <Ionicons name="ios-reverse-camera" size={50}/>
                 </View>
               </TouchableOpacity>    
+              <Slider
+                style={{width: 200, height: 40}}
+                minimumValue={0}
+                maximumValue={100}
+                step={1}
+                minimumTrackTintColor="#000000"
+                maximumTrackTintColor="#000000"
+                value={smileThd}
+                onValueChange={this._changeSmileThd}
+              />
             </View>          
           </View>
         );
@@ -115,9 +133,21 @@ export default class App extends React.Component {
     });
   };
 
+  _isFacesDetected = ({ faces }) => {
+
+    if(faces.length > 0) {
+      console.log(faces[0].smilingProbability);
+      //this._takePhoto();
+    }
+    
+    this.setState({ faces });
+  };
+
   _takePhoto = async () => {     
     try {
       const { uri, width, height, exif, base64 } = await this.camera.takePictureAsync();
+      //const { faces, image } = await FaceDetector.detectFacesAsync(uri, options);
+
       this._savePhoto(uri);
     } catch(err) {
       console.log(err);
@@ -128,7 +158,7 @@ export default class App extends React.Component {
     try {
       const asset = await MediaLibrary.createAssetAsync(uri);      
       const album = await MediaLibrary.getAlbumAsync(`${ALBUM_NAME}`);
-      console.log(album);
+      //console.log(album);
       if(album === null) {
         await MediaLibrary.createAlbumAsync(`${ALBUM_NAME}`, asset, false);
       } else {
@@ -137,6 +167,12 @@ export default class App extends React.Component {
     } catch(err) {
       console.log(err);
     }
+  };
+
+  _changeSmileThd = (sliderValue) => {
+    this.setState({
+      smileThd: sliderValue
+    });
   };
 }
 const styles = StyleSheet.create({
