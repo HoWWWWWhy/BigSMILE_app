@@ -8,6 +8,8 @@ import { Camera } from 'expo-camera';
 import * as FaceDetector from 'expo-face-detector';
 import * as MediaLibrary from 'expo-media-library';
 
+import Dialog from "react-native-dialog";
+
 import { Ionicons } from '@expo/vector-icons';
 
 const { height, width } = Dimensions.get("window");
@@ -25,7 +27,9 @@ export default class App extends React.Component {
       runClassifications: FaceDetector.Constants.Classifications.all
     },
     faces: [],
-    smileThd: 50
+    smileThd: 50,
+    dialogVisible: false,
+    uri: ""
   };  
 
   componentDidMount = async () => {
@@ -69,6 +73,23 @@ export default class App extends React.Component {
           <View style={styles.container}>
             <StatusBar barStyle="light-content" />
             <Text style={styles.title}>Make Big Smile :D</Text>
+            <Dialog.Container
+              visible={this.state.dialogVisible}
+              contentStyle={styles.dialogContent}>
+              <Dialog.Title>Save Smile</Dialog.Title>
+              <Dialog.Description>
+                Do you want to save your smile?
+                If you want, write picture title and why you smile!
+              </Dialog.Description>
+              <Dialog.Input label="Picture Title" wrapperStyle={styles.dialogInput}>
+                aaa
+              </Dialog.Input>
+              <Dialog.Input label="Why you smile" wrapperStyle={styles.dialogInput}>
+                bbb
+              </Dialog.Input>              
+              <Dialog.Button label="Cancel" onPress={this._saveCancel} />
+              <Dialog.Button label="OK" onPress={this._saveOK} />
+            </Dialog.Container>            
             <Camera 
               style={styles.camera}
               type={type}
@@ -81,7 +102,6 @@ export default class App extends React.Component {
                 style={{
                   flex: 1,
                   backgroundColor: 'transparent',
-                  
                 }}>
               </View>           
             </Camera>
@@ -95,16 +115,20 @@ export default class App extends React.Component {
                   <Ionicons name="ios-reverse-camera" size={50}/>
                 </View>
               </TouchableOpacity>    
-              <Slider
-                style={{width: 200, height: 40}}
-                minimumValue={0}
-                maximumValue={100}
-                step={1}
-                minimumTrackTintColor="#000000"
-                maximumTrackTintColor="#000000"
-                value={smileThd}
-                onValueChange={this._changeSmileThd}
-              />
+              <View style={styles.sliderDisplay}>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={100}
+                  step={1}
+                  minimumTrackTintColor="#000000"
+                  maximumTrackTintColor="#000000"
+                  value={smileThd}
+                  onValueChange={this._changeSmileThd}
+                />
+                <Text>{this.state.smileThd}%</Text>
+              </View>
+
             </View>          
           </View>
         );
@@ -135,9 +159,14 @@ export default class App extends React.Component {
 
   _isFacesDetected = ({ faces }) => {
 
+    const { smileThd } = this.state;
+    
     if(faces.length > 0) {
-      console.log(faces[0].smilingProbability);
-      //this._takePhoto();
+      const smilePercent = faces[0].smilingProbability * 100;
+      if( smilePercent > smileThd) {
+        console.log((faces[0].smilingProbability)*100+"%");
+        this._takePhoto();
+      }  
     }
     
     this.setState({ faces });
@@ -146,14 +175,17 @@ export default class App extends React.Component {
   _takePhoto = async () => {     
     try {
       const { uri, width, height, exif, base64 } = await this.camera.takePictureAsync();
-      //const { faces, image } = await FaceDetector.detectFacesAsync(uri, options);
-
-      this._savePhoto(uri);
+      this.setState({ uri });
+      this._showDialog();
+      console.log("dd");
+      
     } catch(err) {
       console.log(err);
     }
   };
   
+
+
   _savePhoto = async (uri) => {
     try {
       const asset = await MediaLibrary.createAssetAsync(uri);      
@@ -174,6 +206,27 @@ export default class App extends React.Component {
       smileThd: sliderValue
     });
   };
+
+  _showDialog = () => {
+    this.setState({ 
+      dialogVisible: true 
+    });
+  };  
+
+  _saveCancel = () => {
+    this.setState({ 
+      dialogVisible: false 
+    });
+  };  
+
+  _saveOK = () => {
+    const {uri} = this.state;
+    
+    this._savePhoto(uri);
+    this.setState({ 
+      dialogVisible: false 
+    });
+  };    
 }
 const styles = StyleSheet.create({
   container: {
@@ -195,7 +248,8 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
     width: width - 50,
-    marginTop: 50,
+    height: width/3*4,
+    marginTop: 20,
     marginBottom: 20
   },
   captureButton: {
@@ -205,5 +259,20 @@ const styles = StyleSheet.create({
   flipSwitch: {
     marginLeft: 10,
     marginRight: 20
+  },
+  sliderDisplay: {
+    alignItems: 'center'
+  },
+  slider: {
+    width: 200,
+    height: 20
+  },
+  dialogContent: {
+    
+  },
+  dialogInput: {
+    backgroundColor: '#ecf0f1',
+    borderRadius: 6,
+    padding: 5
   }
 });
